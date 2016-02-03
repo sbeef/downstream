@@ -31,10 +31,11 @@ def create_point_geometry(sample, verbose=False):
 
 def create_watershed(sample, flow_dir_raster=None, out_folder=None,
                      override_flow_snap=False, verbose=False):
+    name = dsample.get_name(sample)
     # since this function requires arcpy, it checks for arcpy
     if not arcpy_exists:
         print ("no watershed created for %s because there is no arcpy nodule in "
-               "this installation." % dsample.get_name(sample))
+               "this installation." % name
         return None
     # unless you ask it not to, it will check to see if you have snapped the
     # point to a flow direction raster before continuing
@@ -47,7 +48,7 @@ def create_watershed(sample, flow_dir_raster=None, out_folder=None,
                 print ("%s has not been snapped to flow direction, so no "
                        "watershed was created.  set 'override_flow_snap' to "
                        "True to create watershed anyway"
-                       % dsample.get_name(sample))
+                       % name)
                 return None
         # the is_flow_snapped function is optional so if dsample does not
         # provide the function, watershed will still continue.
@@ -55,5 +56,18 @@ def create_watershed(sample, flow_dir_raster=None, out_folder=None,
             if verbose:
                 print ("dsample implementation does not define is_flow_snapped "
                        "function, proceding with watershed creation anyway")
-        c
-
+    if arcpy.CheckExtension("Spatial") == "Available":
+        arcpy.CheckOutExtension("Spatial")
+    else:
+        print ("Spatial Analyst license is unavailable, watershed cannot be "
+               "created for %s." % name)
+        return None
+    # if the user does not provide a flow direction raster, we pull the raster
+    # from the sample itself
+    if flow_dir_raster is None:
+        try:
+            flow_dir_raster = dsample.get_flow_dir_raster(sample)
+            if flow_dir_raster is None:
+                print ("No flow direction raster was provided and %s "
+                       "did not contain a flow direction raster, so no "
+                       "watershed could be created" % name)
