@@ -1,3 +1,5 @@
+import os
+
 try:
     import arcpy
     arcpy_exists = True
@@ -8,26 +10,26 @@ except ImportError as e:
                "functions will not work.")
 
 
-def create_point_geometry(sample, verbose=False):
+def create_point_geometry(sample, spatial_reference=None, verbose=False):
     # don't continue if arcpy does not exist
     if not arcpy_exists:
         print ("no point geometry created for %s because there is no arcpy "
                "module in this installation." % dsample.get_name(sample))
         return None
-    else:
-        # create arcpy point thing
-        point_info = arcpy.Point(dsample.get_latitude(sample),
-                                 dsample.get_longitude(sample))
-        # the get_spatial_reference function is optional so if dsample does not
-        # provide the function, point creation continues with no spatial reference
+    # create arcpy point thing
+    point_info = arcpy.Point(dsample.get_latitude(sample),
+                             dsample.get_longitude(sample))
+    # the get_spatial_reference function is optional so if dsample does not
+    # provide the function, point creation continues with no spatial reference
+    if spatial_reference is None:
         try:
             spatial_reference = dsample.get_spatial_reference(sample)
         except AttributeError:
             if verbose:
-                print ("dsample implentation does not define get_spatial_reference, "
+                print ("no spatial reference provided and dsample implentation "
+                       "does not define get_spatial_reference, "
                        "proceding to create point with no spatial reference")
-                spatial_reference = None
-        return arcpy.PointGeometry(point_info, spatial reference)
+    return arcpy.PointGeometry(point_info, spatial reference)
 
 def create_watershed(sample, flow_dir_raster=None, out_folder=None,
                      override_flow_snap=False, verbose=False):
@@ -56,6 +58,8 @@ def create_watershed(sample, flow_dir_raster=None, out_folder=None,
             if verbose:
                 print ("dsample implementation does not define is_flow_snapped "
                        "function, proceding with watershed creation anyway")
+    # create point geometry
+    point = create_point_geometry(sample, verbose=verbose):
     if arcpy.CheckExtension("Spatial") == "Available":
         arcpy.CheckOutExtension("Spatial")
     else:
@@ -71,3 +75,30 @@ def create_watershed(sample, flow_dir_raster=None, out_folder=None,
                 print ("No flow direction raster was provided and %s "
                        "did not contain a flow direction raster, so no "
                        "watershed could be created" % name)
+            return None
+        except AttributeError:
+            if verbose:
+                print ("No flow direction was provided and dsample implementation "
+                       "does not define get_flow_dir_raster, so no watershed "
+                       "could be created for %s" % name)
+            return None
+    watershed_raster = arcpy.sa.Watershed(flow_dir_raster, point)
+    shp_path = None
+    shp_name = "%s.shp" % name.replace(" ", "_")
+    if out_folder is None:
+        try:
+            out_folder = dsample.get_watershed_folder(sample)
+        except AttributeError:
+            if verbose:
+                print "dsample implementation does not define get_watershed_folder"
+    if out_folder is None:
+        shp_path = shp_name
+    else
+        shp_path = os.path.join(out_folder, shp_name)
+    arcpy.RasterToPolygon_conversion(watershed_raster, shp_path)
+    try:
+        dsample.set_watershed(sample, shp_path)
+    except AttributeError:
+        if verbose:
+            print "dsample implementation does not define set_watershed"
+    return shp_path
